@@ -16,7 +16,7 @@ NB: For MacOs users, please install Xcode if you have an issue.
 ## Execution
 Run the Streamlit app (being at the repository root):
 
-    streamlit run src/streamlit_app.py
+    streamlit run src/app.py
 
 Go to your browser at the following address : http://localhost:8501
 
