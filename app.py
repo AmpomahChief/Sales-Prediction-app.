@@ -1,10 +1,9 @@
- # importing librabries
+# importing librabries
 import streamlit as st
 import pandas as pd
 import numpy as np
 import os, pickle
 import re
-from sklearn import preprocessing
 from PIL import Image
 
 
@@ -23,25 +22,15 @@ def Load_ml_items(relative_path):
     with open(relative_path, 'rb' ) as file:
         loaded_object = pickle.load(file)
     return loaded_object
+Loaded_object = Load_ml_items('assets/ML_tools.pkl')
 
 
-Loaded_object = Load_ml_items('assets/ML_items.pkl')
-
-# Loaded_object = Load_ml_items('ML_items.pl')
+# Instantiating elements of the Machine Learning Toolkit
 model, encoder, data = Loaded_object['model'], Loaded_object['encoder'], Loaded_object['data']
 
 
 # Function to get date features from the inputs
 @st.cache(allow_output_mutation=True)
-def getSeason (row):
-    if row in (3, 4, 5):
-        return 'Spring'
-    elif row in (6, 7, 8):
-        return 'Summer'
-    elif row in (9, 10, 11):
-        return 'Autumnf'
-    elif row in (12, 1, 2):
-        return 'Winter'
 
 def getDateFeatures (df,date):
     df ['date'] = pd.to_datetime(df['date'])
@@ -59,13 +48,12 @@ def getDateFeatures (df,date):
     df ['is_quarter_end'] = df['date'].dt.is_quarter_end.astype(int)
     df ['is_year_start'] = df['date'].dt.is_year_start.astype(int)
     df ['is_year_end'] = df['date'].dt.is_year_end.astype (int) 
-    df ['season'] = df ['month'].apply(getSeason)
-
     return df
-   
-   # Icon for the page
+
+    
+# Icon for the page
 image = Image.open("assets/groceries.jpeg")
-st.image(image, width = 600)
+st.image(image, width = 900)
 
 # Creating elements of the sidebat
 st.sidebar.header("This Web App is a deployment of a machine model that predicts unit sales")
@@ -85,7 +73,9 @@ if check:
                     - **TRANSFERRED** indicates whether the day was a transferred holiday or not.
                     """)
 
- # # Setting up variables for input data
+##################################################################
+
+# # Setting up variables for input data
 @st.cache()
 def setup(tmp_df_file):
     "Setup the required elements like files, models, global variables, etc"
@@ -106,7 +96,7 @@ def setup(tmp_df_file):
 tmp_df_file = os.path.join(DIRPATH, "tmp", "data.csv")
 setup(tmp_df_file)
 
-##################################################################
+##################################################################\
 
 # Forms to retrieve input
 form = st.form(key="information", clear_on_submit=True)
@@ -123,17 +113,14 @@ with form:
     
     # Third row
     oil_price = cols[0].number_input('Input Current fuel price')
-    # On_promo = cols3[1].select_slider('Is the item on promotion', ['Yes', 'No'])
     on_promo = cols[1].slider("Select number of items on promo:",min_value =0, max_value = 742,step =1)
     
-
     # Forth row   
     st.markdown('**ADDITIONAL INFO**')
     check = cols[0].checkbox('Is it a Holiday or a weekend')
     if check:
             Type = cols[0].selectbox('Holiday type', options=(data["type_of_day"].unique()))
             locale = cols[1].selectbox('Locale:', options=(data["locale"].unique()))
-            
     else:
         Type= 'Work Day'
         locale = 'National'      
@@ -141,9 +128,8 @@ with form:
        
     # Submit button
     submitted = st.form_submit_button(label= "Make Prediction")
-
     
-    ##############################################################################
+##############################################################################
 if submitted:
     st.success('Form Recieved!', icon="✔️")  
         # Inputs formatting
@@ -164,41 +150,65 @@ if submitted:
     
     df = pd.read_csv(tmp_df_file)
     input_df = df.copy()
-#####################################################################
-
-    # Extracting date Features
-    processed_data = getDateFeatures(df, 'date')
     
-    # Deleting the date column.
+     # Converting data type to date time
+    df['date'] = pd.to_datetime(df['date']).dt.date
+    input_df['date'] = pd.to_datetime(input_df['date']).dt.date
+    
+    # Extracting date Features
+    processed_data = getDateFeatures(input_df, 'date')
+    
+    # Dropping the date column.
     processed_data = processed_data.drop(columns=['date'])
 
     # Encoding Categorical Variables
-    encoder = preprocessing.LabelEncoder()
+    categoricals = ['family', 
+                    'city', 
+                    'type_of_day', 
+                    'locale'
+                    ]
+    encoded_categoricals = encoder.transform(processed_data[categoricals])
+    encoded_categoricals = pd.DataFrame(encoded_categoricals, columns=encoder.get_feature_names_out().tolist())
+    processed_df = processed_data.join(encoded_categoricals)
+    processed_df.drop(columns=categoricals, inplace=True)
 
-    processed_data['season'] = encoder.fit_transform(processed_data['season'])
-    processed_data['family'] = encoder.fit_transform(processed_data['family'])
-    processed_data['city'] = encoder.fit_transform(processed_data['city'])
-    processed_data['type_of_day'] = encoder.fit_transform(processed_data['type_of_day'])
-    processed_data['locale'] = encoder.fit_transform(processed_data['locale'])
+###################################################################    
     
-     def predict(X, model):
-        results = model.predict(X)
-        return results
+    # Making Predictions
+    prediction = model.predict(processed_df)
+    df["sales($)"] = prediction
+    df["sales($)"] = prediction
+    results = prediction[-1]
     
-    prediction = predict(processed_data, model)
-    df['sales']= prediction 
-    
-    
-    # Displaying prediction results
-    st.markdown('''---''')
-    st.markdown("<h4 style='text-align: center;'> Prediction Results </h4> ", unsafe_allow_html=True)
-    st.success(f"Predicted Sales: {prediction[-1]}")
-    st.markdown('''---''')
+     # Displaying predicted results
+    st.success(f"**Predicted sales**: USD {results}")
 
-    # Making expander to view all records
+###################################################################
+   
+    # def predict(X, model=model):
+    #     results = model.predict(X)
+    #     return results
+    
+    # prediction = predict(processed_df, model)
+    # df['sales']= prediction 
+    
+##################################################################
+
+    # Compounding all predicted results
     expander = st.expander("See all records")
     with expander:
         df = pd.read_csv(tmp_df_file)
         df['sales']= prediction
         st.dataframe(df)
-   
+    
+########################################################################
+
+#OTHERS   
+
+# footer
+footer = st.expander("**Additional Information**")
+with footer:
+    footer.markdown("""
+                    - Access the repository of this App [here](https://github.com/MavisAJ/Store-sales-prediction-Regression___TimeSeries-Analysis-.git).
+                    - Contact me on github[here](https://AmpomahChief.github.io/).
+                    """)
